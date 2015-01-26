@@ -18,18 +18,22 @@
 
 /* $Id$ */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include "astview.h"
 
-#include "php.h"
 #include "zend_ast.h"
 #include "ext/standard/info.h"
 #include "ext/standard/url.h"
+#include "main/php_ini.h"
 
 #if PHP_MAJOR_VERSION < 7
 # error AstView requires PHP version 7 or later
 #endif
+
+ZEND_DECLARE_MODULE_GLOBALS(astview);
+
+PHP_INI_BEGIN()
+	STD_PHP_INI_BOOLEAN("astview.active", "0", PHP_INI_ALL, OnUpdateBool, active, zend_astview_globals, astview_globals)
+PHP_INI_END()
 
 const char* astview_kindName(zend_ast_kind kind) {
 	switch (kind) {
@@ -48,7 +52,7 @@ const char* astview_kindName(zend_ast_kind kind) {
 
 static void astview_visit(zend_ast* ast, int indent);
 
-inline astview_header(zend_ast* ast, int indent) {
+inline void astview_header(zend_ast* ast, int indent) {
 	while (indent--) {
 		php_printf("  ");
 	}
@@ -147,7 +151,9 @@ static void astview_visit(zend_ast* ast, int indent) {
 
 static zend_ast_process_t previous_ast_process = NULL;
 static void astview_ast_process(zend_ast* ast) {
-	astview_visit(ast, 0);
+	if (ASTVG(active)) {
+		astview_visit(ast, 0);
+	}
 	if (previous_ast_process) {
 		previous_ast_process(ast);
 	}
@@ -155,6 +161,7 @@ static void astview_ast_process(zend_ast* ast) {
 
 /* {{{ PHP_MINI_FUNCTION */
 PHP_MINIT_FUNCTION(astview) {
+	REGISTER_INI_ENTRIES();
 	previous_ast_process = zend_ast_process;
 	zend_ast_process = astview_ast_process;
 
@@ -164,6 +171,7 @@ PHP_MINIT_FUNCTION(astview) {
 /* {{{ PHP_MSHUTDOWN_FUNCTION */
 PHP_MSHUTDOWN_FUNCTION(astview) {
 	zend_ast_process = previous_ast_process;
+	UNREGISTER_INI_ENTRIES();
 	return SUCCESS;
 } /* }}} */
 
@@ -186,7 +194,11 @@ zend_module_entry astview_module_entry = {
 	NULL, /* RSHUTDOWN */
 	PHP_MINFO(astview),
 	"7.0.0-dev",
-	STANDARD_MODULE_PROPERTIES
+	PHP_MODULE_GLOBALS(astview),
+	NULL, /* GINIT */
+	NULL, /* GSHUTDOWN */
+	NULL, /* RPOSTSHUTDOWN */
+	STANDARD_MODULE_PROPERTIES_EX
 };
 /* }}} */
 
